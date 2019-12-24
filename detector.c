@@ -591,8 +591,11 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
         } else {
             printf("Enter Image Path: ");
             fflush(stdout);
-            input = fgets(input, 256, stdin);
-            if(!input) return;
+            do {
+              input = fgets(input, 256, stdin);
+              printf("Working on %s\n", input);      // DEBUG show input filename
+              fflush(stdout);
+            } while (!input);  // previously immediate 'return' if blank input
             strtok(input, "\n");
 		}
 #ifdef NNPACK
