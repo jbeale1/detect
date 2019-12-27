@@ -2,7 +2,8 @@
 
 # Run Yolo-v3 in interactive mode, effectively as a server process.  
 # Feed it images, use detected areas to crop out detected objects
-# Yolo v3 needs image height and width to be multiple of 32
+# Yolo v3 wants image height and width to be multiple of 32
+# threshold of 0.75 needed to minimize false positives (mostly at dusk)
 # J.Beale 23-Dec-2019
 
 import subprocess 
@@ -41,14 +42,13 @@ for file in os.listdir(folder):
 
 filenames.sort() # os.listdir gives them in random order, so fix that
 
-
 # start darknet process. Note: detections below 50% are more often wrong than right
 """
 yolo_proc = subprocess.Popen(["./darknet",
                    "detect",
                    "./cfg/yolov3-tiny.cfg",
                    "./yolov3-tiny.weights",
-                   "-thresh","0.5"],
+                   "-thresh","0.75"],
                    stdin = subprocess.PIPE, stdout = subprocess.PIPE)
 
 """
@@ -56,7 +56,7 @@ yolo_proc = subprocess.Popen(["./darknet",
                    "detect",
                    "./cfg/yolov3.cfg",
                    "./yolov3.weights",
-                   "-thresh","0.5"],
+                   "-thresh","0.75"],
                    stdin = subprocess.PIPE, stdout = subprocess.PIPE)
 
 
@@ -65,15 +65,17 @@ fcntl.fcntl(yolo_proc.stdout.fileno(), fcntl.F_SETFL, os.O_NONBLOCK)
 
 i = 0
 rl = 0
+totalFiles = 0
 fname = ''  # start with null input filename
 dets = []   # start with no detections
 
 print("Started Yolo\n")
 print("First file: %s\n" % filenames[0])
 
-logfile = open(logfname,"a+")
-logfile.write("Starting Yolo-v3 : %s\n" % str(datetime.datetime.now()) )  # append to log file, or create it if needed
-
+start_time = datetime.datetime.now()
+logfile = open(logfname,"a+")  # append to log file, or create it if needed
+logfile.write("\n@ Starting Yolo-v3 : %d files : %s\n" % ( len(filenames), str(start_time) ) )
+logfile.flush()
 
 while True:
         yline = yolo_proc.stdout.readline()  # get one line from process as string
@@ -93,15 +95,19 @@ while True:
               dets.clear()
             except:
               putLog(fname, dets)         # save detections from previous image (if any)
-              logfile.close()
+              end_time = datetime.datetime.now()
+              dur = end_time - start_time
               print("All done: files = %d\n" % i)  # exit when finished with all files
+              logfile.write("@ Ending Yolo-v3 : total %d : minutes %d : %s\n" % (i,dur.total_seconds()/60,str(end_time) ) )
+              logfile.flush()
+              logfile.close()
               sys.exit()
 
             print("\nFile %d: %s" % (i,fpath))
             to_yolo = str.encode(fpathcr)  # encode as byte array (?)
             yolo_proc.stdin.write(to_yolo)
             yolo_proc.stdin.flush()  # without this nothing happens
-            i += 1
+            i += 1                   # count of total # files sent to Yolo
           elif "Predicted in" in yout:
             print(yout)
           elif "Working on" in yout:
